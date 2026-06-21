@@ -15,6 +15,7 @@
 |---|---|---|---|
 | 0.1 | 2026-06-20 | 초안 — F001~F005 등재 | jaecheon.jeong |
 | 0.2 | 2026-06-21 | F007(컨텍스트 자동 압축) 등재 — 구현 후 SSOT 정합 | jaecheon.jeong |
+| 0.3 | 2026-06-21 | F008(데스크톱 토스트 통지) 등재 — sidabari 이식, 구현 후 정합 | jaecheon.jeong |
 
 > **기능 ID 규약**: `F{NNN}` 은 본 App 내 unique. 정식 F001~F099, Backlog F101~.
 
@@ -39,6 +40,7 @@
 | F005 | 공용 Hook 콘솔 | 전 슬롯 이벤트 panel_id 태그 머지 표시(최우측) | Draft | Not Started | 미작성 | P1 |
 | F006 | 슬롯 PTY 직접 입력 | 슬롯 선택(포커스) + 키 입력으로 수동 개입·취소(프로그램적 취소 없음) | Draft | Not Started | 미작성 | P1 |
 | F007 | 컨텍스트 자동 압축 | 단계 전이 시 컨텍스트 점유율 측정 → 임계(기본 40%) 이상이면 /compact 자동 주입·완료 후 다음 단계 | Draft | Implemented | 단위/타입 통과 | P1 |
+| F008 | 데스크톱 토스트 통지 | claude 입력 대기(스톨)·슬롯 완료/실패를 OS 토스트로 통지. 자동 복구 없음(사람 결정) | Draft | Implemented | 타입 통과 | P1 |
 
 > **우선순위**: P0 = MVP 필수. P1 = 이번 릴리즈 권장. P2 = Backlog.
 
@@ -52,6 +54,7 @@
 | F005 | [PRD §3.1](SLOTRUNNER-PRD.md#31-릴리즈-범위-본-app-한정) | [SLOTRUNNER-FRD-002](FRD/SLOTRUNNER-FRD-002.md) | 미작성/추후 | FRD-002 §15 | 미작성/추후 |
 | F006 | [PRD §6](SLOTRUNNER-PRD.md#6-핵심-시나리오-본-app-내부) | [SLOTRUNNER-FRD-002](FRD/SLOTRUNNER-FRD-002.md) | 미작성/추후 | FRD-002 §15 | 미작성/추후 |
 | F007 | [PRD §7](SLOTRUNNER-PRD.md#7-주요-기능-요약-본-app-한정) | [SLOTRUNNER-FRD-003](FRD/SLOTRUNNER-FRD-003.md) | 미작성/추후 | FRD-003 §15 | 미작성/추후 |
+| F008 | [PRD §7](SLOTRUNNER-PRD.md#7-주요-기능-요약-본-app-한정) | [SLOTRUNNER-FRD-004](FRD/SLOTRUNNER-FRD-004.md) | 미작성/추후 | FRD-004 §15 | 미작성/추후 |
 
 ### 검증·근거·확인
 | 기능 ID | 관련 Test Case | 수용 기준 | 요구 근거 | 확인 필요 여부 |
@@ -63,6 +66,7 @@
 | F005 | [FRD-002 §18](FRD/SLOTRUNNER-FRD-002.md#18-테스트-관점) | [FRD-002 §17](FRD/SLOTRUNNER-FRD-002.md#17-수용-기준) | 최종 그림(공용 콘솔 최우측) | 없음 |
 | F006 | [FRD-002 §18](FRD/SLOTRUNNER-FRD-002.md#18-테스트-관점) | [FRD-002 §17](FRD/SLOTRUNNER-FRD-002.md#17-수용-기준) | 사용자 결정(수동 취소=PTY 직접 입력) | 없음 |
 | F007 | [FRD-003 §18](FRD/SLOTRUNNER-FRD-003.md#18-테스트-관점) | [FRD-003 §17](FRD/SLOTRUNNER-FRD-003.md#17-수용-기준) | 사용자 요청(컨텍스트 임계 압축, 40%) · sidabari 참고 | 라이브 압축 발동 실측 권장 |
+| F008 | [FRD-004 §18](FRD/SLOTRUNNER-FRD-004.md#18-테스트-관점) | [FRD-004 §17](FRD/SLOTRUNNER-FRD-004.md#17-수용-기준) | 사용자 결정(토스트만, 자동 넛지 배제) · sidabari HookBridge | 라이브 토스트 실측 권장 |
 
 ### 기능 요구 추적
 | 기능 ID | 작업 유형 | 사용자 영향 | 문서 영향 | 완료 기준 |
@@ -74,6 +78,7 @@
 | F005 | 신규 | 콘솔 가시화 | FC / FRD | [FRD-002 §17](FRD/SLOTRUNNER-FRD-002.md#17-수용-기준) |
 | F006 | 신규 | 슬롯 직접 입력·수동 취소 | FC / FRD / ADR | [FRD-002 §17](FRD/SLOTRUNNER-FRD-002.md#17-수용-기준) |
 | F007 | 신규 | 콘솔 점유율·압축 로그(자동 동작) | FC / FRD / ADR | [FRD-003 §17](FRD/SLOTRUNNER-FRD-003.md#17-수용-기준) |
+| F008 | 신규 | 데스크톱 토스트(개입 시점 인지) | FC / FRD / ADR | [FRD-004 §17](FRD/SLOTRUNNER-FRD-004.md#17-수용-기준) |
 
 ### 타 App 협력 흐름
 > 본 App 은 솔루션 내 유일 App. 외부 결합은 App 이 아닌 외부 자산(Slack봇 agentorchestrator, claudecode-for-me 플러그인, Monday)이다.

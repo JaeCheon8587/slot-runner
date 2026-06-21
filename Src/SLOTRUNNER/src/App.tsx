@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { JobBridge } from "@/components/JobBridge";
 import { StageController } from "@/components/StageController";
+import { NotificationBridge } from "@/components/NotificationBridge";
 import { SlotPanel } from "@/components/SlotPanel";
 import { EndOfRunModal } from "@/components/EndOfRunModal";
 import { useAppStore } from "@/store/useAppStore";
@@ -30,6 +31,7 @@ export default function App() {
     <div className="app">
       <JobBridge />
       <StageController />
+      <NotificationBridge />
       <EndOfRunModal />
       <header className="bar">
         <span className="brand">SlotRunner</span>
