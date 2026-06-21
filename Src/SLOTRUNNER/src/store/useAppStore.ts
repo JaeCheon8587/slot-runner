@@ -34,10 +34,19 @@ type AppState = {
   queue: Job[];
   /** 슬롯 claude 기동 후 forge 주입 지연(ms). config 로 갱신. */
   injectDelayMs: number;
+  /** 스텝 전이 시 컨텍스트 점유율(%)이 이 값 이상이면 /compact 주입(StageController). */
+  compactThresholdPct: number;
+  /** 컨텍스트 점유율 분모(토큰). */
+  contextWindowTokens: number;
   addEvent: (source: string, message: string) => void;
   clearConsole: () => void;
-  /** 백엔드 config 적용 — 슬롯 수(빈 슬롯 재생성) + 주입 지연. 시작 시 1회. */
-  applyConfig: (cfg: { slots: number; inject_delay_ms: number }) => void;
+  /** 백엔드 config 적용 — 슬롯 수(빈 슬롯 재생성) + 주입 지연 + 컨텍스트 압축. 시작 시 1회. */
+  applyConfig: (cfg: {
+    slots: number;
+    inject_delay_ms: number;
+    compact_threshold_pct?: number;
+    context_window_tokens?: number;
+  }) => void;
   assignJob: (job: Job) => AssignResult;
   /** 슬롯 해제(세션 종료). 큐 대기분 있으면 즉시 재배정(dequeue), 없으면 빈 슬롯으로. outcome 초기화. */
   releaseSlot: (slotId: string) => ReleaseResult;
@@ -66,6 +75,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   slots: SLOT_IDS.map((id) => emptySlot(id)),
   queue: [],
   injectDelayMs: 4000,
+  compactThresholdPct: 40,
+  contextWindowTokens: 1_000_000,
 
   addEvent: (source, message) =>
     set((s) => ({ consoleEvents: [...s.consoleEvents, newEvent(source, message)] })),
@@ -74,7 +85,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   applyConfig: (cfg) => {
     const n = Math.max(1, Math.min(4, cfg.slots || 2));
     const ids = Array.from({ length: n }, (_, i) => `slot-${i + 1}`);
-    set({ slots: ids.map((id) => emptySlot(id)), injectDelayMs: cfg.inject_delay_ms || 4000 });
+    set({
+      slots: ids.map((id) => emptySlot(id)),
+      injectDelayMs: cfg.inject_delay_ms || 4000,
+      compactThresholdPct: Math.min(100, cfg.compact_threshold_pct ?? 40),
+      contextWindowTokens: cfg.context_window_tokens || 1_000_000,
+    });
   },
 
   assignJob: (job) => {

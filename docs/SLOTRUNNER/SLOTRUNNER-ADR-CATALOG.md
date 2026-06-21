@@ -13,6 +13,7 @@
 | 버전 | 일자 | 변경 요약 | 작성자 |
 |---|---|---|---|
 | 0.1 | 2026-06-20 | 초안 — 부트스트랩(ADR 본문 미등재). 설계 단계 결정은 후보로 기재 | jaecheon.jeong |
+| 0.2 | 2026-06-21 | ADR-006(슬롯별 Job Object 고아 방지)·ADR-007(컨텍스트 임계 /compact) 등재 | jaecheon.jeong |
 
 ---
 
@@ -27,6 +28,8 @@
 | [SLOTRUNNER-ADR-003](ADR/SLOTRUNNER-ADR-003.md) | 단계 게이트는 파일 판정, 종료/유지는 사람 결정 모달 | 2026-06-20 | 단계 전이·마감 | Application(Pipeline), Infrastructure(Gate), Presentation(EndOfRunModal) | [PRD §6·§8](SLOTRUNNER-PRD.md#6-핵심-시나리오-본-app-내부) · [FC F003·F004](SLOTRUNNER-FC.md) · [FRD-001](FRD/SLOTRUNNER-FRD-001.md) |
 | [SLOTRUNNER-ADR-004](ADR/SLOTRUNNER-ADR-004.md) | 운영 상태는 휘발, 단계는 7200s 타임아웃으로 보호 | 2026-06-20 | 상태 영속·단계 수명 | Application(Pipeline/SlotPool), Infrastructure(PTY) | [PRD §8·§9](SLOTRUNNER-PRD.md#8-비기능-요구사항-app-특화) · [FRD-001 §7·§13](FRD/SLOTRUNNER-FRD-001.md) · [FRD-002 §10](FRD/SLOTRUNNER-FRD-002.md) |
 | [SLOTRUNNER-ADR-005](ADR/SLOTRUNNER-ADR-005.md) | 취소·개입은 슬롯 PTY 직접 입력, REST 취소 없음 | 2026-06-20 | 취소·수동 개입·슬롯 UI | Presentation(슬롯 포커스/입력), Application(SlotPool) | [PRD §3.1·§6 S8](SLOTRUNNER-PRD.md#31-릴리즈-범위-본-app-한정) · [FC F006](SLOTRUNNER-FC.md) · [FRD-002 §5·§11](FRD/SLOTRUNNER-FRD-002.md) |
+| [SLOTRUNNER-ADR-006](ADR/SLOTRUNNER-ADR-006.md) | 슬롯 자식 트리는 슬롯별 Job Object(KILL_ON_JOB_CLOSE)로 정리(고아 방지) | 2026-06-21 | 슬롯 생명주기·프로세스 정리 | Infrastructure(PTY/JobObject) | [PRD §8](SLOTRUNNER-PRD.md#8-비기능-요구사항-app-특화) · [FRD-002 §10](FRD/SLOTRUNNER-FRD-002.md) |
+| [SLOTRUNNER-ADR-007](ADR/SLOTRUNNER-ADR-007.md) | 스텝 전이 시 컨텍스트 점유 임계(기본 40%) 기반 /compact 자동 주입 | 2026-06-21 | 컨텍스트 관리·단계 전이 | Presentation(StageController), Infrastructure(ContextUsage/PTY) | [PRD §3.1·§7·§8](SLOTRUNNER-PRD.md#31-릴리즈-범위-본-app-한정) · [FC F007](SLOTRUNNER-FC.md) · [FRD-003](FRD/SLOTRUNNER-FRD-003.md) |
 
 ## Proposed
 
@@ -54,3 +57,5 @@
 | C4 (EndOfRunModal 결정 게이트) · C6 (파일 단계 게이트) | [SLOTRUNNER-ADR-003](ADR/SLOTRUNNER-ADR-003.md) |
 | 보강(휘발·타임아웃) | [SLOTRUNNER-ADR-004](ADR/SLOTRUNNER-ADR-004.md) |
 | 보강(수동 취소=PTY 직접 입력) | [SLOTRUNNER-ADR-005](ADR/SLOTRUNNER-ADR-005.md) |
+| 구현 후 추가(고아 방지=슬롯별 Job Object) | [SLOTRUNNER-ADR-006](ADR/SLOTRUNNER-ADR-006.md) |
+| 구현 후 추가(컨텍스트 임계 /compact) | [SLOTRUNNER-ADR-007](ADR/SLOTRUNNER-ADR-007.md) |

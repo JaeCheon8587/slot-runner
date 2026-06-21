@@ -40,6 +40,7 @@ pub fn run() {
             infra::pty::pty_kill,
             infra::gate::read_forge_gate,
             infra::gate::read_ddr_gate,
+            infra::context_usage::context_usage,
             infra::hooks_bus::hook_paths,
             infra::hook_installer::install_claude_hooks,
         ])
