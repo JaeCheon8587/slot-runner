@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { listenHookEvent } from "@/lib/hooks";
 import { stageDirective, stageLabel, effectiveStages, DONE } from "@/lib/jobs";
-import { ptyPaste, ptyEnter } from "@/lib/pty";
+import { ptyPaste, ptyEnter, ptySlash } from "@/lib/pty";
 import { getContextUsage, contextUsagePct } from "@/lib/context";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -101,7 +101,10 @@ export function StageController() {
         `${slotId} 컨텍스트 ${pctLabel} ≥ 임계 ${compactThresholdPct}% — /compact 후 ${stageLabel(next)} (최대 ${Math.round(COMPACT_WAIT_MS / 60000)}분 대기)`,
       );
       pending.set(slotId, { directive, stage: next });
-      injectDirective(slotId, "/compact", "compact");
+      // /compact 는 슬래시 명령 — 브래킷 페이스트 대신 ptySlash(ESC 정리+타이핑+지연)로 제출(리터럴 박힘 방지).
+      ptySlash(slotId, "/compact").catch((err) =>
+        useAppStore.getState().addEvent("SYSTEM", `${slotId} /compact 주입 실패: ${err}`),
+      );
       clearTimer(slotId);
       timers.set(
         slotId,
