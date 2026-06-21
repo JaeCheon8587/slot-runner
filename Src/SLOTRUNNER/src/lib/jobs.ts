@@ -39,10 +39,18 @@ export function listenQueueClear(cb: () => void): Promise<UnlistenFn> {
 // 단계는 문자열(스킬명). job.stages 가 비면 DEFAULT_STAGES.
 export const DEFAULT_STAGES = ["docs-add-task", "forge-scope", "ddr-loop"] as const;
 export const DONE = "done";
+// Monday 통지 종결 스텝 — 봇이 보낸 작업 stages 뒤에 SlotRunner 가 자동 추가(ADR-010).
+// 파이프라인 종점=Monday(F003). update_id 있을 때만(통지 대상 존재).
+export const MONDAY_STAGE = "monday-notify";
 
-/// 이 잡의 실효 routine. stages 지정 시 그대로, 비면 기본 풀 routine.
+/// 이 잡의 실효 routine. stages 지정 시 그대로(비면 기본 풀 routine) + Monday 종결 스텝 자동 추가.
+/// 설계·개발 어느 routine이든 마지막은 monday-notify(중복 방지, update_id 있을 때).
 export function effectiveStages(job: Job): string[] {
-  return job.stages && job.stages.length > 0 ? job.stages : [...DEFAULT_STAGES];
+  const base = job.stages && job.stages.length > 0 ? [...job.stages] : [...DEFAULT_STAGES];
+  if (job.update_id && base[base.length - 1] !== MONDAY_STAGE) {
+    base.push(MONDAY_STAGE);
+  }
+  return base;
 }
 
 // 플러그인 스킬 네임스페이스 — bare 이름은 "Unknown skill". 반드시 plugin:skill.
@@ -74,6 +82,12 @@ const STAGE_DIRECTIVES: Record<string, (job: Job) => string> = {
   },
   "ddr-loop": (job) =>
     `직전 forge-scope 구현(워크트리 브랜치 feat-${job.phase})을 \`${PLUGIN}:ddr-loop\` 스킬로 문서 기준 검증·수렴하라.`,
+  // 종결 스텝 — 작업 결과를 Monday update 답글로 통지(파이프라인 종점, ADR-010). Monday MCP 사용.
+  "monday-notify": (job) =>
+    `방금 수행한 작업(phase ${job.phase})의 결과를 요약해 Monday MCP \`create_update\` 로 답글을 작성하라.\n` +
+    `- board_id: ${job.board_id}\n- item_id(pulse): ${job.item_id}\n` +
+    `- 답글 대상 update_id: ${job.update_id} (parentId 로 지정해 reply 로 등록)\n` +
+    `- 본문: 무엇을(엔드포인트/기능) 구현·검증했는지 + 빌드/테스트 결과를 간결히. 본문은 글자 그대로 등록.`,
 };
 
 /// 슬롯 claude 세션에 주입할 단계 지시. stage="done"/미정 → null.
@@ -92,6 +106,7 @@ const KNOWN_LABEL: Record<string, string> = {
   "docs-add-task": "docs-add-task",
   "forge-scope": "forge-scope",
   "ddr-loop": "ddr-loop",
+  "monday-notify": "Monday 통지",
   done: "완료",
 };
 export function stageLabel(stage: string): string {

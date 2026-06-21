@@ -31,6 +31,7 @@
     - 개발(`…/TASK/…md` 또는 "개발") → `["forge-scope","ddr-loop"]`
   - **SlotRunner = stages 그대로 실행**: 루틴 해석을 SlotRunner 가 다시 하지 않는다. 받은 stages 순서대로 스텝 루프 구동.
   - **위임 경계**: 봇은 파싱 → 루틴·프로젝트 결정 → `POST /jobs` 까지. 파이프라인 실행·Monday 통지는 SlotRunner(슬롯 세션). 봇은 Slack 에 접수 응답만.
+  - **Monday 통지 = 종결 스텝**: SlotRunner 가 봇이 보낸 작업 stages 뒤에 `monday-notify` 를 자동 추가(update_id 있을 때, 중복 방지). 설계·개발 어느 routine이든 마지막은 Monday MCP `create_update` 로 update_id 답글에 결과 요약 등록. 봇은 이 스텝을 보내지 않는다(SlotRunner 소유).
   - **POST 바디**: `{ project, phase, stages, prompt, doc?, board_id, item_id, update_id }` — 경로는 project 로 해석([ADR-009]).
   - **프로젝트**: board_id → project 논리명(xlab·smartros)은 봇이 매핑. 경로/빌드값은 SlotRunner 레지스트리 소유([ADR-009]).
 - **결과**:
