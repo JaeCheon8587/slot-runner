@@ -42,6 +42,8 @@ export const DONE = "done";
 // Monday 통지 종결 스텝 — 봇이 보낸 작업 stages 뒤에 SlotRunner 가 자동 추가(ADR-010).
 // 파이프라인 종점=Monday(F003). update_id 있을 때만(통지 대상 존재).
 export const MONDAY_STAGE = "monday-notify";
+// Monday 답글 제목 끝 시그니처(요구). 제목은 항상 이 문자열로 끝난다.
+export const MONDAY_SIGNATURE = "- Claude Code Agent with Codex Agent";
 
 /// 이 잡의 실효 routine. stages 지정 시 그대로(비면 기본 풀 routine) + Monday 종결 스텝 자동 추가.
 /// 설계·개발 어느 routine이든 마지막은 monday-notify(중복 방지, update_id 있을 때).
@@ -87,7 +89,8 @@ const STAGE_DIRECTIVES: Record<string, (job: Job) => string> = {
     `방금 수행한 작업(phase ${job.phase})의 결과를 요약해 Monday MCP \`create_update\` 로 답글을 작성하라.\n` +
     `- board_id: ${job.board_id}\n- item_id(pulse): ${job.item_id}\n` +
     `- 답글 대상 update_id: ${job.update_id} (parentId 로 지정해 reply 로 등록)\n` +
-    `- 본문: 무엇을(엔드포인트/기능) 구현·검증했는지 + 빌드/테스트 결과를 간결히. 본문은 글자 그대로 등록.`,
+    `- 본문: 무엇을(엔드포인트/기능) 구현·검증했는지 + 빌드/테스트 결과를 간결히. 본문은 글자 그대로 등록.\n` +
+    `- 본문 첫 줄(제목)은 반드시 시그니처 "${MONDAY_SIGNATURE}" 로 끝나게 하라(예: "[<TASK-ID>] <요약> ${MONDAY_SIGNATURE}").`,
 };
 
 /// 슬롯 claude 세션에 주입할 단계 지시. stage="done"/미정 → null.
