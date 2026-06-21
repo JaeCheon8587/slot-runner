@@ -98,7 +98,13 @@ fn handle(app: &AppHandle, mut req: Request) {
             }
         }
         Decision::JobError(reason) => {
-            json(400, serde_json::json!({ "error": "JOB_SPEC_INVALID", "reason": reason }))
+            // 미등록 프로젝트는 독립 errorCode 로 구분(PRD 부록 B / ADR-009) — 봇이 구분 처리.
+            let code = if reason.starts_with("PROJECT_UNKNOWN") {
+                "PROJECT_UNKNOWN"
+            } else {
+                "JOB_SPEC_INVALID"
+            };
+            json(400, serde_json::json!({ "error": code, "reason": reason }))
         }
         Decision::QueueClear => {
             // 큐는 프론트 소유 → 비우기 이벤트 위임(프론트가 실제 비우고 콘솔 보고).
