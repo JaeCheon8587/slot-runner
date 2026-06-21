@@ -17,6 +17,7 @@
 | 0.2 | 2026-06-21 | 구현 후 SSOT 정합 — F007(컨텍스트 자동 압축)·고아 방지(ADR-006)·컨텍스트 압축(ADR-007) 반영 | jaecheon.jeong |
 | 0.3 | 2026-06-21 | F008(데스크톱 토스트)·ADR-008(자동복구 배제) 반영 | jaecheon.jeong |
 | 0.4 | 2026-06-21 | ADR-009(프로젝트 레지스트리·봇 논리명) — 부록 B PROJECT_UNKNOWN | jaecheon.jeong |
+| 0.5 | 2026-06-21 | ADR-010(봇 통합·루틴 프리셋) — 봇이 stages 결정·POST, 파이프라인·Monday는 SlotRunner | jaecheon.jeong |
 
 ---
 
@@ -58,7 +59,7 @@
 ## 6. 핵심 시나리오 (본 App 내부)
 | # | 시나리오 | 기대 결과 |
 |---|---|---|
-| S1 | 봇이 POST /jobs 전송 | 빈 슬롯에 세션 mount → 파이프라인 구동, 202 즉시 반환 |
+| S1 | 봇이 Monday 메시지 신호로 루틴(stages)·project 결정 후 POST /jobs 전송 | 빈 슬롯에 세션 mount → 받은 stages 그대로 구동, 202 즉시 반환 — [ADR-010](ADR/SLOTRUNNER-ADR-010.md) |
 | S2 | 모든 슬롯 점유 중 추가 잡 | FIFO 큐 적재, 슬롯 비면 자동 dequeue |
 | S3 | 파이프라인 완료 | Monday 댓글 등록 + EndOfRunModal(완료) 표시 |
 | S4 | 게이트 실패/HALT | Monday 실패 통지 + EndOfRunModal(실패) |

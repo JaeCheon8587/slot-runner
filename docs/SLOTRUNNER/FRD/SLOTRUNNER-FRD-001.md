@@ -17,6 +17,7 @@
 |---|---|---|---|
 | 0.1 | 2026-06-20 | 초안 | jaecheon.jeong |
 | 0.2 | 2026-06-21 | 프로젝트 레지스트리 해석(project 논리명) 반영 — §7 E8·§8·§9, ADR-009 | jaecheon.jeong |
+| 0.3 | 2026-06-21 | 봇 통합 — 루틴 프리셋(설계/개발) 표·stages 봇 결정 반영, ADR-010 | jaecheon.jeong |
 
 ## 1. 기능 요약
 | 항목 | 내용 |
@@ -77,6 +78,12 @@
 - 세션은 작업당 1개로 끝까지 재사용(단계마다 신규 세션 생성 금지) — [ADR-002](../ADR/SLOTRUNNER-ADR-002.md).
 - 헤드리스 가정 주입 규칙(무인 실행, 질문/백그라운드 금지)을 운영 프롬프트로 강제.
 - 대상 경로·빌드 파라미터는 **프로젝트 논리명(project)** 으로 해석한다 — SlotRunner 호스트 레지스트리가 cwd/sln/app/test_target 을 소유. 봇은 논리명만 보낸다(직접 지정 폴백 허용, 직접값 우선) — [ADR-009](../ADR/SLOTRUNNER-ADR-009.md).
+- **루틴(stages)은 봇이 결정해 보낸다**(규칙 기반). SlotRunner 는 받은 stages 를 그대로 실행(재해석 안 함) — [ADR-010](../ADR/SLOTRUNNER-ADR-010.md). 권장 프리셋:
+
+  | 작업 종류 | 입력 신호(봇) | stages |
+  |---|---|---|
+  | 설계 | `.requirements/…md` / "설계" | `docs-add-task` → `forge-scope` → `ddr-loop` |
+  | 개발 | `…/TASK/…md` / "개발" | `forge-scope` → `ddr-loop` |
 
 ## 9. 입출력 개념
 | 구분 | 내용 | 제약 | 예시 |

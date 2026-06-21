@@ -16,6 +16,7 @@
 | 0.2 | 2026-06-21 | ADR-006(슬롯별 Job Object 고아 방지)·ADR-007(컨텍스트 임계 /compact) 등재 | jaecheon.jeong |
 | 0.3 | 2026-06-21 | ADR-008(토스트 통지·자동복구 배제) 등재 | jaecheon.jeong |
 | 0.4 | 2026-06-21 | ADR-009(프로젝트 레지스트리·봇 논리명 책임분리) 등재 | jaecheon.jeong |
+| 0.5 | 2026-06-21 | ADR-010(봇 통합·루틴 프리셋 책임 경계) 등재 | jaecheon.jeong |
 
 ---
 
@@ -34,6 +35,7 @@
 | [SLOTRUNNER-ADR-007](ADR/SLOTRUNNER-ADR-007.md) | 스텝 전이 시 컨텍스트 점유 임계(기본 40%) 기반 /compact 자동 주입 | 2026-06-21 | 컨텍스트 관리·단계 전이 | Presentation(StageController), Infrastructure(ContextUsage/PTY) | [PRD §3.1·§7·§8](SLOTRUNNER-PRD.md#31-릴리즈-범위-본-app-한정) · [FC F007](SLOTRUNNER-FC.md) · [FRD-003](FRD/SLOTRUNNER-FRD-003.md) |
 | [SLOTRUNNER-ADR-008](ADR/SLOTRUNNER-ADR-008.md) | 스톨·완료는 데스크톱 토스트로 통지, 자동 복구(넛지) 없음(선택권 보존) | 2026-06-21 | 통지·스톨 대응·운영자 개입 | Presentation(NotificationBridge), Infrastructure(notification plugin) | [PRD §3.1·§7·§8](SLOTRUNNER-PRD.md#31-릴리즈-범위-본-app-한정) · [FC F008](SLOTRUNNER-FC.md) · [FRD-004](FRD/SLOTRUNNER-FRD-004.md) |
 | [SLOTRUNNER-ADR-009](ADR/SLOTRUNNER-ADR-009.md) | 대상 경로·빌드 파라미터는 SlotRunner 프로젝트 레지스트리가 소유, 봇은 논리명(project)만 | 2026-06-21 | 봇 결합·인테이크·다중 프로젝트 | Domain(JobSpec/resolve), Infrastructure(config/REST) | [PRD §5·부록 B](SLOTRUNNER-PRD.md) · [FRD-001 §8·§9](FRD/SLOTRUNNER-FRD-001.md) |
+| [SLOTRUNNER-ADR-010](ADR/SLOTRUNNER-ADR-010.md) | 봇 통합 — 루틴(stages) 매핑은 봇, SlotRunner는 stages 실행 + Monday 통지 | 2026-06-21 | 봇↔앱 책임 경계·루틴 결정 | Infrastructure(REST), 외부(agentorchestrator) | [PRD §5·§6](SLOTRUNNER-PRD.md) · [FRD-001 §5·§8·§9](FRD/SLOTRUNNER-FRD-001.md) |
 
 ## Proposed
 
@@ -65,3 +67,4 @@
 | 구현 후 추가(컨텍스트 임계 /compact) | [SLOTRUNNER-ADR-007](ADR/SLOTRUNNER-ADR-007.md) |
 | 구현 후 추가(토스트 통지·자동복구 배제) | [SLOTRUNNER-ADR-008](ADR/SLOTRUNNER-ADR-008.md) |
 | 구현 후 추가(프로젝트 레지스트리·책임분리) | [SLOTRUNNER-ADR-009](ADR/SLOTRUNNER-ADR-009.md) |
+| 구현 후 추가(봇 통합·루틴 프리셋) | [SLOTRUNNER-ADR-010](ADR/SLOTRUNNER-ADR-010.md) |
