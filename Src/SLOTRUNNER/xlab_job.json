@@ -1,0 +1,11 @@
+{
+  "cwd": "C:/Users/cross/OneDrive/Desktop/XLab솔루션",
+  "app": "MASTER",
+  "phase": "master-sum-routine",
+  "sln": "Src/Mirero.PCC.XLab/Mirero.PCC.XLab.sln",
+  "test_target": "Src/Mirero.PCC.XLab/z_Test/Master/Mirero.XLab.Test.Master/Mirero.XLab.Test.Master.csproj",
+  "board_id": "0",
+  "item_id": "0",
+  "update_id": "0",
+  "prompt": "Master 호스트에 두 정수의 합을 반환하는 GET /sum?a&b REST 엔드포인트 추가 (무상태·무인증, 단위테스트 포함)"
+}

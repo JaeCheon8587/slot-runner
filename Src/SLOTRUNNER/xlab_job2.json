@@ -1,0 +1,11 @@
+{
+  "cwd": "C:/Users/cross/OneDrive/Desktop/XLab솔루션",
+  "app": "MASTER",
+  "phase": "master-echo-routine",
+  "sln": "Src/Mirero.PCC.XLab/Mirero.PCC.XLab.sln",
+  "test_target": "Src/Mirero.PCC.XLab/z_Test/Master/Mirero.XLab.Test.Master/Mirero.XLab.Test.Master.csproj",
+  "board_id": "0",
+  "item_id": "0",
+  "update_id": "0",
+  "prompt": "Master 호스트에 쿼리 문자열 msg 를 그대로 대문자로 바꿔 반환하는 GET /echo?msg= REST 엔드포인트 추가 (무상태·무인증, 빈 문자열 400, 단위테스트 포함)"
+}

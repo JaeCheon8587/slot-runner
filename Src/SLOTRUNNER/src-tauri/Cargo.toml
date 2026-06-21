@@ -1,0 +1,27 @@
+[package]
+name = "slotrunner"
+version = "0.1.0"
+description = "SlotRunner — Monday→Slack→파이프라인을 N슬롯 Claude Code 세션으로 구동하는 상시 REST 오케스트레이터"
+authors = ["Claude Code (Anthropic)"]
+edition = "2021"
+
+[lib]
+# Tauri 2: 라이브러리 크레이트(run())를 main.rs 가 호출. 데스크톱+모바일 공용.
+name = "slotrunner_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 봇→앱 동기 REST 인테이크 (ADR-001). 127.0.0.1 바인드. 동기·자체 스레드, 비동기 런타임 미도입.
+tiny_http = "0.12"
+# 잡 식별자 생성.
+uuid = { version = "1", features = ["v4"] }
+# 슬롯별 로컬 PTY (Claude Code/셸 실행). Windows ConPTY / Unix pty 추상화 (ADR-002 슬롯=세션).
+portable-pty = "0.9"
+# Claude Hook 이벤트 파일 IPC (events.jsonl tail).
+notify = "6"
