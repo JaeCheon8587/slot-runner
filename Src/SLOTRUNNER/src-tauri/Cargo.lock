@@ -2914,6 +2914,7 @@ dependencies = [
  "tauri-build",
  "tiny_http",
  "uuid",
+ "windows",
 ]
 
 [[package]]

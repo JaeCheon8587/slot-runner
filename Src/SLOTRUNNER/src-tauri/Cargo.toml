@@ -25,3 +25,13 @@ uuid = { version = "1", features = ["v4"] }
 portable-pty = "0.9"
 # Claude Hook 이벤트 파일 IPC (events.jsonl tail).
 notify = "6"
+
+# Windows: 슬롯 PTY 자식(claude 등)을 Job Object 에 묶어 앱 종료(크래시 포함) 시 OS 가 트리째 종료
+# → 고아 프로세스 누적 방지. windows 0.61 은 tauri 의존과 동일 버전(중복 없음).
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }

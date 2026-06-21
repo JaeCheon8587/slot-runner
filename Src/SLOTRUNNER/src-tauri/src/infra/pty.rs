@@ -92,6 +92,58 @@ fn resolve_command(program: &str, args: Vec<String>) -> (String, Vec<String>) {
     (program.to_string(), args)
 }
 
+// Windows Job Object — 슬롯 PTY 자식을 한 job 에 묶는다. KILL_ON_JOB_CLOSE 라서 앱 프로세스가
+// 죽으면(정상·크래시·강제kill) 마지막 job 핸들이 닫히며 OS 가 자식 트리(claude→node/dotnet)를 종료한다.
+// 고아 프로세스 누적 → 리소스 고갈 → 앱 크래시 악순환을 끊는다.
+#[cfg(windows)]
+mod jobkill {
+    use std::sync::Mutex;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
+
+    struct Job(HANDLE);
+    // HANDLE 은 프로세스 수명 동안 유지(static). 프로세스 종료 시 OS 가 핸들을 닫아 job 발동.
+    unsafe impl Send for Job {}
+
+    static JOB: Mutex<Option<Job>> = Mutex::new(None);
+
+    /// job 을 (최초 1회) 만들고 주어진 pid 를 할당한다. 실패는 무시(고아 정리 best-effort).
+    pub fn ensure_and_assign(pid: u32) {
+        let mut guard = match JOB.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if guard.is_none() {
+            unsafe {
+                if let Ok(h) = CreateJobObjectW(None, None) {
+                    let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+                    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                    let _ = SetInformationJobObject(
+                        h,
+                        JobObjectExtendedLimitInformation,
+                        &info as *const _ as *const core::ffi::c_void,
+                        std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                    );
+                    *guard = Some(Job(h));
+                }
+            }
+        }
+        if let Some(job) = guard.as_ref() {
+            unsafe {
+                if let Ok(hproc) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, pid) {
+                    let _ = AssignProcessToJobObject(job.0, hproc);
+                    let _ = CloseHandle(hproc);
+                }
+            }
+        }
+    }
+}
+
 /// 슬롯 id 의 PTY 를 spawn 한다. 이미 있으면 에러(중복 spawn 방지).
 /// program 지정 시 그 프로그램(예: claude)을, 없으면 OS 셸을 띄운다. args 는 개별 인자(셸 인젝션 없음).
 #[tauri::command]
@@ -137,6 +189,11 @@ pub fn pty_spawn(
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("spawn 실패: {}", e))?;
+    // Windows: 자식을 Job Object 에 묶어 앱 종료(크래시 포함) 시 OS 가 트리째 종료 → 고아 방지.
+    #[cfg(windows)]
+    if let Some(pid) = child.process_id() {
+        jobkill::ensure_and_assign(pid);
+    }
     let mut reader = pair
         .master
         .try_clone_reader()
