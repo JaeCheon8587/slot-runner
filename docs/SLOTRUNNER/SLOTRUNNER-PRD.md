@@ -16,6 +16,7 @@
 | 0.1 | 2026-06-20 | 초안 | jaecheon.jeong |
 | 0.2 | 2026-06-21 | 구현 후 SSOT 정합 — F007(컨텍스트 자동 압축)·고아 방지(ADR-006)·컨텍스트 압축(ADR-007) 반영 | jaecheon.jeong |
 | 0.3 | 2026-06-21 | F008(데스크톱 토스트)·ADR-008(자동복구 배제) 반영 | jaecheon.jeong |
+| 0.4 | 2026-06-21 | ADR-009(프로젝트 레지스트리·봇 논리명) — 부록 B PROJECT_UNKNOWN | jaecheon.jeong |
 
 ---
 
@@ -52,7 +53,7 @@
 | 구분 | 역할 | 관심사 |
 |---|---|---|
 | 운영자(본인 1명) | 앱을 켜두고 슬롯·팝업으로 작업을 감독 | 작업 진행 가시성, 세션 종료/유지 결정, 실패 사유 |
-| Slack 봇(agentorchestrator) | REST 클라이언트 | POST /jobs 접수 성공(202), 취소 전달 |
+| Slack 봇(agentorchestrator) | REST 클라이언트 | POST /jobs 접수 성공(202). 프로젝트 **논리명(project)** + 루틴(stages) + Monday ID 만 보냄(경로는 SlotRunner 레지스트리가 소유 — [ADR-009](ADR/SLOTRUNNER-ADR-009.md)) |
 
 ## 6. 핵심 시나리오 (본 App 내부)
 | # | 시나리오 | 기대 결과 |
@@ -119,7 +120,8 @@
 
 | errorCode | 발생 기능 | 의미 | 통지 경로 |
 |---|---|---|---|
-| `JOB_SPEC_INVALID` | F001 | 잡 명세 필수 항목(doc/sln/Monday ID 등) 누락 | REST 4xx |
+| `JOB_SPEC_INVALID` | F001 | 잡 명세 필수 항목(phase/prompt/Monday ID 등) 누락 또는 해석 후 cwd/sln/app 미충족 | REST 4xx |
+| `PROJECT_UNKNOWN` | F001 | project 논리명이 레지스트리(projects.json)에 미등록 — [ADR-009](ADR/SLOTRUNNER-ADR-009.md) | REST 4xx |
 | `QUEUE_FULL` | F002 | 큐 상한 10 초과로 거부 | Monday 댓글(NotifyPort) |
 | `SLOT_SPAWN_FAILED` | F002 | 슬롯 claude 세션 기동 실패 | 콘솔 + Monday 댓글 |
 | `FORGE_BLOCKED` | F003 | forge 단계 차단/오류(index.json 미달) | 팝업 + Monday 댓글 |

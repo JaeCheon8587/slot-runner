@@ -3,7 +3,9 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 // Rust domain::job::Job 와 1:1. 코드상세 SSOT = src-tauri/src/domain/job.rs.
 export type Job = {
   job_id: string;
-  /** 대상 repo 경로(슬롯 claude 세션 cwd). */
+  /** 프로젝트 논리명(봇이 보냄). Rust 가 레지스트리로 cwd/sln/app 해석 후 emit — 프론트엔 해석 완료본 도착. */
+  project?: string | null;
+  /** 대상 repo 경로(슬롯 claude 세션 cwd). project 로 해석되거나 직접 지정. */
   cwd: string;
   /** 대상 App 코드 (docs-add-task 입력, 예: MASTER). */
   app: string;

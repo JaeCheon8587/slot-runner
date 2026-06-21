@@ -1,0 +1,9 @@
+{
+  "project": "xlab",
+  "phase": "master-mul-routine",
+  "stages": ["docs-add-task", "forge-scope", "ddr-loop"],
+  "prompt": "Master 호스트에 두 정수의 곱을 반환하는 GET /mul?a&b REST 엔드포인트 추가 (무상태·무인증, long 오버플로 방지, 단위테스트 포함)",
+  "board_id": "0",
+  "item_id": "0",
+  "update_id": "0"
+}

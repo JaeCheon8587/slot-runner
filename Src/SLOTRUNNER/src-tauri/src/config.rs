@@ -4,6 +4,8 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+use crate::domain::job::Projects;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
@@ -62,6 +64,19 @@ pub fn load(app: &AppHandle) -> AppConfig {
 #[tauri::command]
 pub fn get_config(app: AppHandle) -> AppConfig {
     load(&app)
+}
+
+/// 프로젝트 레지스트리(projects.json) 로드 — 논리명→경로/빌드 파라미터(ADR-009).
+/// 호스트 로컬 설정. 부재/파싱 실패 시 빈 맵(직접 cwd 지정 잡만 동작).
+pub fn load_projects(app: &AppHandle) -> Projects {
+    let path = match app.path().app_config_dir() {
+        Ok(d) => d.join("projects.json"),
+        Err(_) => return Projects::new(),
+    };
+    match std::fs::read_to_string(&path) {
+        Ok(s) => serde_json::from_str::<Projects>(&s).unwrap_or_default(),
+        Err(_) => Projects::new(),
+    }
 }
 
 #[cfg(test)]

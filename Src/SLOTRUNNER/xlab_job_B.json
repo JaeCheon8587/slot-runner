@@ -1,0 +1,10 @@
+{
+  "project": "xlab",
+  "phase": "master-task-014",
+  "doc": "Docs/MASTER/TASK/MASTER-TASK-014.md",
+  "stages": ["forge-scope", "ddr-loop"],
+  "prompt": "MASTER-TASK-014 정수 합 GET /sum 엔드포인트 구현",
+  "board_id": "0",
+  "item_id": "0",
+  "update_id": "0"
+}

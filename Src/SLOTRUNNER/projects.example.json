@@ -1,0 +1,15 @@
+{
+  "_comment": "프로젝트 레지스트리 예시 (ADR-009). 실제 파일은 SlotRunner 호스트의 app_config_dir/projects.json 에 둔다(레포 미커밋, 호스트 로컬). 봇은 논리명(project)만 POST 하고 SlotRunner 가 여기서 cwd/sln/app/test_target 을 해석한다.",
+  "xlab": {
+    "cwd": "C:/Users/cross/OneDrive/Desktop/XLab솔루션",
+    "sln": "Src/Mirero.PCC.XLab/Mirero.PCC.XLab.sln",
+    "app": "MASTER",
+    "test_target": "Src/Mirero.PCC.XLab/z_Test/Master/Mirero.XLab.Test.Master/Mirero.XLab.Test.Master.csproj"
+  },
+  "smartros": {
+    "cwd": "C:/경로/SmartROS",
+    "sln": "Src/...SmartROS.sln",
+    "app": "SMARTROS_APP_CODE",
+    "test_target": null
+  }
+}

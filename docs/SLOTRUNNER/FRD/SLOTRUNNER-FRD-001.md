@@ -16,6 +16,7 @@
 | 버전 | 일자 | 변경 요약 | 작성자 |
 |---|---|---|---|
 | 0.1 | 2026-06-20 | 초안 | jaecheon.jeong |
+| 0.2 | 2026-06-21 | 프로젝트 레지스트리 해석(project 논리명) 반영 — §7 E8·§8·§9, ADR-009 | jaecheon.jeong |
 
 ## 1. 기능 요약
 | 항목 | 내용 |
@@ -68,17 +69,19 @@
 | E5 | 단계(forge/ddr) 7200s 초과 | 그 단계 프로세스 트리 종료 + 실패 마감(STAGE_TIMEOUT) + 슬롯 해제 — [ADR-004](../ADR/SLOTRUNNER-ADR-004.md) | 타임아웃 사유 | 필요 |
 | E6 | 파이프라인 중 PTY 세션 사망 | 자동 재시도 없이 실패 마감(SESSION_DIED) + 슬롯 해제 | 세션 종료 사유 | 필요 |
 | E7 | Monday MCP 미로드(통지 단계 성립 불가) | 실패로 마감(MONDAY_NOTIFY_FAILED), 로컬 결과 보존, 팝업 통지 | MCP 미로드 사유 | 필요 |
+| E8 | 알 수 없는 project 논리명(레지스트리 미등록) | 접수 거부(PROJECT_UNKNOWN) — [ADR-009](../ADR/SLOTRUNNER-ADR-009.md) | 미등록 프로젝트 사유 | 필요 |
 
 ## 8. 상세 기능 요구사항
 - 단계 전이는 **산출물 파일 판정**으로만 결정한다(LLM 자기보고 비의존) — [ADR-003](../ADR/SLOTRUNNER-ADR-003.md).
 - 단계는 정해진 순서(구현 → 문서기준 검증 → 통지)로만 진행. 게이트 미달 시 정지.
 - 세션은 작업당 1개로 끝까지 재사용(단계마다 신규 세션 생성 금지) — [ADR-002](../ADR/SLOTRUNNER-ADR-002.md).
 - 헤드리스 가정 주입 규칙(무인 실행, 질문/백그라운드 금지)을 운영 프롬프트로 강제.
+- 대상 경로·빌드 파라미터는 **프로젝트 논리명(project)** 으로 해석한다 — SlotRunner 호스트 레지스트리가 cwd/sln/app/test_target 을 소유. 봇은 논리명만 보낸다(직접 지정 폴백 허용, 직접값 우선) — [ADR-009](../ADR/SLOTRUNNER-ADR-009.md).
 
 ## 9. 입출력 개념
 | 구분 | 내용 | 제약 | 예시 |
 |---|---|---|---|
-| 입력 | 작업 문서 경로·빌드 대상·요청 요약·Monday 식별자(board/item/update) | 필수. 외부 텍스트는 데이터로만 취급(명령 실행 금지) | 없음 |
+| 입력 | 프로젝트 논리명(project, 또는 직접 cwd/sln/app)·작업 슬러그(phase)·요청 요약·입력 문서·Monday 식별자(board/item/update) | 필수. project 는 레지스트리에 등록돼야 함(ADR-009). 외부 텍스트는 데이터로만 취급 | `{project:"xlab", phase, prompt, stages, board/item/update}` |
 | 출력 | Monday 댓글(리뷰 본문) + 팝업(완료/실패) | 댓글은 대상 update 답글로 등록 | 없음 |
 
 ## 10. 상태 정의

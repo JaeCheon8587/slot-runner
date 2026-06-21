@@ -10,7 +10,7 @@ use std::io::{Cursor, Read};
 use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::domain::job::{Job, JobSpec};
+use crate::domain::job::{Job, JobSpec, Projects};
 
 /// 본문 상한 — 과대 페이로드 방어.
 const MAX_BODY: u64 = 256 * 1024;
@@ -25,17 +25,19 @@ enum Decision {
     NotFound,
 }
 
-fn parse_validate(body: &str) -> Result<JobSpec, String> {
-    let spec: JobSpec =
+/// 파싱 → project 해석(레지스트리) → 필수 검증. 어느 단계든 실패하면 사유 반환(JOB_SPEC_INVALID/PROJECT_UNKNOWN).
+fn parse_resolve_validate(body: &str, registry: &Projects) -> Result<JobSpec, String> {
+    let mut spec: JobSpec =
         serde_json::from_str(body).map_err(|e| format!("파싱 실패: {}", e))?;
+    spec.resolve(registry)?;
     spec.validate()?;
     Ok(spec)
 }
 
-fn decide(method: &Method, path: &str, body: &str) -> Decision {
+fn decide(method: &Method, path: &str, body: &str, registry: &Projects) -> Decision {
     match (method, path) {
         (Method::Get, "/health") => Decision::Health,
-        (Method::Post, "/jobs") => match parse_validate(body) {
+        (Method::Post, "/jobs") => match parse_resolve_validate(body, registry) {
             Ok(spec) => Decision::NewJob(spec),
             Err(e) => Decision::JobError(e),
         },
@@ -82,7 +84,9 @@ fn handle(app: &AppHandle, mut req: Request) {
         return;
     }
 
-    let resp = match decide(&method, &path, &body) {
+    // 프로젝트 레지스트리(projects.json) 로드 — project 논리명 해석용(ADR-009). 매 요청 로드(소형 파일).
+    let registry = crate::config::load_projects(app);
+    let resp = match decide(&method, &path, &body, &registry) {
         Decision::Health => json(200, serde_json::json!({ "status": "ok" })),
         Decision::NewJob(spec) => {
             let job_id = uuid::Uuid::new_v4().to_string();
@@ -109,32 +113,74 @@ fn handle(app: &AppHandle, mut req: Request) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::job::ProjectEntry;
 
     const FULL: &str = r#"{"cwd":"C:/repo","app":"MASTER","phase":"p","sln":"s","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#;
 
+    fn empty_reg() -> Projects {
+        Projects::new()
+    }
+    fn xlab_reg() -> Projects {
+        let mut m = Projects::new();
+        m.insert(
+            "xlab".into(),
+            ProjectEntry {
+                cwd: "C:/XLab".into(),
+                sln: "X.sln".into(),
+                app: "MASTER".into(),
+                test_target: None,
+            },
+        );
+        m
+    }
+
     #[test]
     fn health_route() {
-        assert_eq!(decide(&Method::Get, "/health", ""), Decision::Health);
+        assert_eq!(decide(&Method::Get, "/health", "", &empty_reg()), Decision::Health);
     }
 
     #[test]
     fn jobs_valid_route() {
-        match decide(&Method::Post, "/jobs", FULL) {
+        // 직접 지정(A 폴백) — 레지스트리 비어도 통과.
+        match decide(&Method::Post, "/jobs", FULL, &empty_reg()) {
             Decision::NewJob(s) => assert_eq!(s.phase, "p"),
             other => panic!("expected NewJob, got {:?}", other),
         }
     }
 
     #[test]
+    fn jobs_project_resolved_route() {
+        // project 만 보내면 레지스트리로 cwd/sln/app 해석 후 통과(B 방식).
+        let body = r#"{"project":"xlab","phase":"p","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#;
+        match decide(&Method::Post, "/jobs", body, &xlab_reg()) {
+            Decision::NewJob(s) => {
+                assert_eq!(s.cwd, "C:/XLab");
+                assert_eq!(s.sln, "X.sln");
+                assert_eq!(s.app, "MASTER");
+            }
+            other => panic!("expected NewJob, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn jobs_unknown_project_route() {
+        let body = r#"{"project":"nope","phase":"p","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#;
+        match decide(&Method::Post, "/jobs", body, &xlab_reg()) {
+            Decision::JobError(e) => assert!(e.contains("PROJECT_UNKNOWN")),
+            other => panic!("expected JobError(PROJECT_UNKNOWN), got {:?}", other),
+        }
+    }
+
+    #[test]
     fn jobs_invalid_route() {
-        // 필수 누락 → JobError
-        match decide(&Method::Post, "/jobs", r#"{"phase":"p"}"#) {
+        // 필수 누락(board_id 등) → 역직렬화 실패 → JobError
+        match decide(&Method::Post, "/jobs", r#"{"phase":"p"}"#, &empty_reg()) {
             Decision::JobError(_) => {}
             other => panic!("expected JobError, got {:?}", other),
         }
-        // 빈 필드 → JobError(validate)
-        let empty = r#"{"cwd":"","app":"M","phase":"p","sln":"s","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#;
-        match decide(&Method::Post, "/jobs", empty) {
+        // project 없고 cwd 도 비면 → validate 실패(해석도 직접지정도 없음)
+        let empty = r#"{"cwd":"","app":"","phase":"p","sln":"","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#;
+        match decide(&Method::Post, "/jobs", empty, &empty_reg()) {
             Decision::JobError(_) => {}
             other => panic!("expected JobError(validate), got {:?}", other),
         }
@@ -142,12 +188,15 @@ mod tests {
 
     #[test]
     fn queue_clear_route() {
-        assert_eq!(decide(&Method::Post, "/jobs/queue:clear", ""), Decision::QueueClear);
+        assert_eq!(
+            decide(&Method::Post, "/jobs/queue:clear", "", &empty_reg()),
+            Decision::QueueClear
+        );
     }
 
     #[test]
     fn unknown_route() {
-        assert_eq!(decide(&Method::Get, "/nope", ""), Decision::NotFound);
-        assert_eq!(decide(&Method::Post, "/jobs/x", ""), Decision::NotFound);
+        assert_eq!(decide(&Method::Get, "/nope", "", &empty_reg()), Decision::NotFound);
+        assert_eq!(decide(&Method::Post, "/jobs/x", "", &empty_reg()), Decision::NotFound);
     }
 }
