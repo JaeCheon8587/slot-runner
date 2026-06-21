@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Job } from "@/lib/jobs";
+import { effectiveStages, DONE, type Job } from "@/lib/jobs";
 
 // 슬롯 풀 + FIFO 큐 (SLOTRUNNER-FRD-002 F002 / ADR-002). 기본 N=2, 큐 상한 10.
 export const SLOT_IDS = ["slot-1", "slot-2"] as const;
@@ -9,15 +9,12 @@ export type ConsoleEvent = { id: string; ts: number; source: string; message: st
 export type SlotStatus = "empty" | "busy";
 /** 파이프라인 결과 (슬라이스 6, F004/ADR-003). 실제 트리거는 forge/ddr 게이트, 현재는 sim. */
 export type SlotOutcome = { kind: "done" | "failed"; reason?: string };
-/** 스텝 루프 단계 (Supervisor 패턴). 한 턴 한 단계: docs-add-task→forge-scope→ddr-loop→done. */
-export type Stage = "docs-add-task" | "forge-scope" | "ddr-loop" | "done";
-export const STAGE_ORDER: Stage[] = ["docs-add-task", "forge-scope", "ddr-loop", "done"];
 export type Slot = {
   id: string;
   status: SlotStatus;
   job: Job | null;
-  /** 현재 스텝 루프 단계. busy 슬롯에서만 의미. */
-  stage: Stage;
+  /** 현재 스텝 인덱스(job.stages 기준, Supervisor 패턴 한 턴 한 단계). busy 슬롯에서만 의미. */
+  stageIndex: number;
   /** 완료/실패 결과. null 이 아니면 EndOfRunModal 표시(사람 결정 게이트). */
   outcome: SlotOutcome | null;
 };
@@ -50,8 +47,8 @@ type AppState = {
   keepSession: (slotId: string) => void;
   /** 대기 큐 전체 비우기(실행중 슬롯 무관). 제거된 건수 반환. F002/AC-F002-004. */
   clearQueue: () => number;
-  /** 스텝 루프 다음 단계로 전이. 다음 Stage 반환(없으면 "done"). */
-  advanceStage: (slotId: string) => Stage;
+  /** 스텝 루프 다음 단계로 전이. 다음 단계명 반환(끝나면 "done"). */
+  advanceStage: (slotId: string) => string;
 };
 
 function newEvent(source: string, message: string): ConsoleEvent {
@@ -59,7 +56,7 @@ function newEvent(source: string, message: string): ConsoleEvent {
 }
 
 function emptySlot(id: string): Slot {
-  return { id, status: "empty", job: null, stage: "docs-add-task", outcome: null };
+  return { id, status: "empty", job: null, stageIndex: 0, outcome: null };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -85,7 +82,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const idx = slots.findIndex((s) => s.status === "empty");
     if (idx >= 0) {
       const next = slots.slice();
-      next[idx] = { ...next[idx], status: "busy", job, stage: "docs-add-task", outcome: null };
+      next[idx] = { ...next[idx], status: "busy", job, stageIndex: 0, outcome: null };
       set({ slots: next });
       return { kind: "assigned", slotId: next[idx].id };
     }
@@ -103,7 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (queue.length > 0) {
       const [head, ...rest] = queue;
       const next = slots.slice();
-      next[idx] = { ...next[idx], status: "busy", job: head, stage: "docs-add-task", outcome: null };
+      next[idx] = { ...next[idx], status: "busy", job: head, stageIndex: 0, outcome: null };
       set({ slots: next, queue: rest });
       return { kind: "reassigned", slotId, job: head };
     }
@@ -140,13 +137,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   advanceStage: (slotId) => {
     const { slots } = get();
     const idx = slots.findIndex((s) => s.id === slotId);
-    if (idx < 0) return "done";
-    const cur = slots[idx].stage;
-    const pos = STAGE_ORDER.indexOf(cur);
-    const nextStage = STAGE_ORDER[Math.min(pos + 1, STAGE_ORDER.length - 1)];
+    if (idx < 0 || !slots[idx].job) return DONE;
+    const stages = effectiveStages(slots[idx].job as Job);
+    const nextIndex = slots[idx].stageIndex + 1;
     const next = slots.slice();
-    next[idx] = { ...next[idx], stage: nextStage };
+    next[idx] = { ...next[idx], stageIndex: nextIndex };
     set({ slots: next });
-    return nextStage;
+    return stages[nextIndex] ?? DONE;
   },
 }));

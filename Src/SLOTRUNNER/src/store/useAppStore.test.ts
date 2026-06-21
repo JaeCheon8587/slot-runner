@@ -24,7 +24,7 @@ beforeEach(() => {
       id,
       status: "empty" as const,
       job: null,
-      stage: "docs-add-task" as const,
+      stageIndex: 0,
       outcome: null,
     })),
     queue: [],
@@ -97,11 +97,18 @@ describe("큐 비우기 / config (F002 AC-F002-004 / SPEC §5)", () => {
 describe("스텝 루프 단계 전이 (Supervisor 패턴)", () => {
   it("배정 시 docs-add-task 부터, advanceStage 로 순차 전이 후 done", () => {
     st().assignJob(mkJob(1));
-    expect(st().slots.find((s) => s.id === "slot-1")?.stage).toBe("docs-add-task");
+    expect(st().slots.find((s) => s.id === "slot-1")?.stageIndex).toBe(0);
     expect(st().advanceStage("slot-1")).toBe("forge-scope");
     expect(st().advanceStage("slot-1")).toBe("ddr-loop");
     expect(st().advanceStage("slot-1")).toBe("done");
     expect(st().advanceStage("slot-1")).toBe("done"); // done 에서 더 안 넘어감
+  });
+
+  it("잡별 stages 따름 (B: forge-scope→ddr-loop, docs-add-task 생략)", () => {
+    st().assignJob({ ...mkJob(1), stages: ["forge-scope", "ddr-loop"] });
+    expect(st().slots.find((s) => s.id === "slot-1")?.stageIndex).toBe(0);
+    expect(st().advanceStage("slot-1")).toBe("ddr-loop");
+    expect(st().advanceStage("slot-1")).toBe("done");
   });
 
   it("재배정 시 단계가 docs-add-task 로 초기화", () => {
@@ -110,7 +117,7 @@ describe("스텝 루프 단계 전이 (Supervisor 패턴)", () => {
     st().assignJob(mkJob(3)); // 큐
     st().advanceStage("slot-1"); // forge-scope
     st().releaseSlot("slot-1"); // job3 재배정
-    expect(st().slots.find((s) => s.id === "slot-1")?.stage).toBe("docs-add-task");
+    expect(st().slots.find((s) => s.id === "slot-1")?.stageIndex).toBe(0);
   });
 });
 

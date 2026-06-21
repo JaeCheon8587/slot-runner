@@ -1,10 +1,10 @@
 import { PtyTerminal } from "@/components/PtyTerminal";
-import { stageDirective, STAGE_LABEL } from "@/lib/jobs";
+import { stageDirective, stageLabel, effectiveStages } from "@/lib/jobs";
 import { useAppStore } from "@/store/useAppStore";
 
-// 슬롯 패널: busy 면 대상 repo(cwd)에서 claude 세션 spawn + 스텝1(docs-add-task) 지시 주입.
-// 스텝 2~3 전이는 StageController 가 Stop훅마다 수행. 완료/실패는 EndOfRunModal(F004/ADR-003).
-// 완료(sim)/실패(sim) 버튼 = 수동 override(훅 미발화 등 대비).
+// 슬롯 패널: busy 면 대상 repo(cwd)에서 claude 세션 spawn + 스텝1(job.stages[0]) 지시 주입.
+// 스텝 2~ 전이는 StageController 가 Stop훅마다 수행. 완료/실패는 EndOfRunModal(F004/ADR-003).
+// 완료(sim)/실패(sim) = 수동 override.
 const CLAUDE_ARGS: string[] = [];
 
 export function SlotPanel({ id }: { id: string }) {
@@ -13,13 +13,15 @@ export function SlotPanel({ id }: { id: string }) {
 
   const job = slot?.status === "busy" ? slot.job : null;
   const pending = !!slot?.outcome;
+  const stages = job ? effectiveStages(job) : [];
+  const curStage = job ? stages[slot!.stageIndex] ?? "done" : null;
 
   return (
     <div className="slot">
       <div className="slot-bar">
         <span className="slot-id">{id}</span>
         <span className={`badge badge-${slot?.status ?? "empty"}`}>
-          {job ? `busy · ${STAGE_LABEL[slot!.stage]}` : "empty"}
+          {job ? `busy · ${stageLabel(curStage as string)} (${(slot!.stageIndex ?? 0) + 1}/${stages.length})` : "empty"}
         </span>
         {job && !pending ? (
           <>
@@ -42,7 +44,7 @@ export function SlotPanel({ id }: { id: string }) {
           program="claude"
           args={CLAUDE_ARGS}
           cwd={job.cwd}
-          inject={stageDirective(job, "docs-add-task")}
+          inject={stageDirective(job, stages[0])}
         />
       ) : (
         <div className="pty empty-pty">empty — 잡 대기</div>

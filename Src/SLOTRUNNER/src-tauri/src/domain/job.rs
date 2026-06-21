@@ -18,6 +18,12 @@ pub struct JobSpec {
     /// 자연어 요구사항 (docs-add-task 가 설계문서로 변환). 루틴의 핵심 입력.
     #[serde(default)]
     pub prompt: String,
+    /// 입력 문서 — A(설계)=요구사항 .md / B(개발)=TASK .md. 비면 prompt 만 사용.
+    #[serde(default)]
+    pub doc: String,
+    /// 잡별 routine(스텝 순서). 비면 프론트가 기본 풀 routine 적용. 봇이 Monday 키워드로 채움.
+    #[serde(default)]
+    pub stages: Vec<String>,
     /// Monday 통지 대상.
     pub board_id: String,
     pub item_id: String,
