@@ -92,11 +92,15 @@ fn resolve_command(program: &str, args: Vec<String>) -> (String, Vec<String>) {
     (program.to_string(), args)
 }
 
-// Windows Job Object — 슬롯 PTY 자식을 한 job 에 묶는다. KILL_ON_JOB_CLOSE 라서 앱 프로세스가
-// 죽으면(정상·크래시·강제kill) 마지막 job 핸들이 닫히며 OS 가 자식 트리(claude→node/dotnet)를 종료한다.
+// Windows Job Object — 슬롯마다 별도 job 을 만들어 그 슬롯 PTY 자식(과 자손 트리)을 묶는다.
+// KILL_ON_JOB_CLOSE 라서 해당 슬롯 job 핸들이 닫히면 OS 가 자식 트리(claude→node/dotnet)를 종료한다.
+// - 슬롯 해제(pty_kill)·재기동(remount): 그 슬롯 job 핸들만 닫아 → 서브트리 즉시 reap (자손까지).
+//   child.kill() 은 최상위 1개만 죽여 자손(node/dotnet)이 고아로 남던 문제를 막는다.
+// - 앱 종료/크래시: 프로세스 종료 시 OS 가 남은 모든 슬롯 job 핸들을 닫아 → 전체 트리 reap (백스톱).
 // 고아 프로세스 누적 → 리소스 고갈 → 앱 크래시 악순환을 끊는다.
 #[cfg(windows)]
 mod jobkill {
+    use std::collections::HashMap;
     use std::sync::Mutex;
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::System::JobObjects::{
@@ -107,37 +111,49 @@ mod jobkill {
     use windows::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
     struct Job(HANDLE);
-    // HANDLE 은 프로세스 수명 동안 유지(static). 프로세스 종료 시 OS 가 핸들을 닫아 job 발동.
+    // HANDLE 은 슬롯 수명 동안 유지. 닫는 순간(close/remount/프로세스 종료) KILL_ON_JOB_CLOSE 발동.
     unsafe impl Send for Job {}
 
-    static JOB: Mutex<Option<Job>> = Mutex::new(None);
+    static JOBS: Mutex<Option<HashMap<String, Job>>> = Mutex::new(None);
 
-    /// job 을 (최초 1회) 만들고 주어진 pid 를 할당한다. 실패는 무시(고아 정리 best-effort).
-    pub fn ensure_and_assign(pid: u32) {
-        let mut guard = match JOB.lock() {
+    /// 슬롯 id 전용 job 을 만들어 pid 를 할당한다. 같은 id 의 기존 job 이 있으면 그 핸들을 닫아
+    /// (이전 슬롯 서브트리 reap) 새 job 으로 교체한다. 실패는 무시(고아 정리 best-effort).
+    pub fn assign(id: &str, pid: u32) {
+        let mut guard = match JOBS.lock() {
             Ok(g) => g,
             Err(_) => return,
         };
-        if guard.is_none() {
-            unsafe {
-                if let Ok(h) = CreateJobObjectW(None, None) {
-                    let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-                    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-                    let _ = SetInformationJobObject(
-                        h,
-                        JobObjectExtendedLimitInformation,
-                        &info as *const _ as *const core::ffi::c_void,
-                        std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-                    );
-                    *guard = Some(Job(h));
+        let map = guard.get_or_insert_with(HashMap::new);
+        unsafe {
+            if let Ok(h) = CreateJobObjectW(None, None) {
+                let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                let _ = SetInformationJobObject(
+                    h,
+                    JobObjectExtendedLimitInformation,
+                    &info as *const _ as *const core::ffi::c_void,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                );
+                if let Ok(hproc) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, pid) {
+                    let _ = AssignProcessToJobObject(h, hproc);
+                    let _ = CloseHandle(hproc);
+                }
+                // 같은 id 의 이전 job 교체 — 반환된 옛 핸들을 닫아 이전 서브트리 reap.
+                if let Some(old) = map.insert(id.to_string(), Job(h)) {
+                    let _ = CloseHandle(old.0);
                 }
             }
         }
-        if let Some(job) = guard.as_ref() {
-            unsafe {
-                if let Ok(hproc) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, pid) {
-                    let _ = AssignProcessToJobObject(job.0, hproc);
-                    let _ = CloseHandle(hproc);
+    }
+
+    /// 슬롯 id 의 job 핸들을 닫는다 → KILL_ON_JOB_CLOSE 로 그 슬롯 서브트리(자손 포함) 즉시 종료.
+    pub fn close(id: &str) {
+        if let Ok(mut guard) = JOBS.lock() {
+            if let Some(map) = guard.as_mut() {
+                if let Some(job) = map.remove(id) {
+                    unsafe {
+                        let _ = CloseHandle(job.0);
+                    }
                 }
             }
         }
@@ -163,6 +179,9 @@ pub fn pty_spawn(
         let mut map = state.map.lock().map_err(|_| "state lock 실패")?;
         if let Some(mut old) = map.remove(&id) {
             let _ = old.child.kill();
+            // 이전 슬롯 job 닫아 자손 트리까지 reap (child.kill 은 최상위만 죽임).
+            #[cfg(windows)]
+            jobkill::close(&id);
         }
     }
 
@@ -189,10 +208,11 @@ pub fn pty_spawn(
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("spawn 실패: {}", e))?;
-    // Windows: 자식을 Job Object 에 묶어 앱 종료(크래시 포함) 시 OS 가 트리째 종료 → 고아 방지.
+    // Windows: 자식을 슬롯 전용 Job Object 에 묶는다. 슬롯 해제(pty_kill)·재기동 시 그 슬롯 job 만
+    // 닫아 자손 트리째 reap, 앱 종료(크래시 포함) 시 모든 슬롯 job 핸들이 닫혀 전체 종료 → 고아 방지.
     #[cfg(windows)]
     if let Some(pid) = child.process_id() {
-        jobkill::ensure_and_assign(pid);
+        jobkill::assign(&id, pid);
     }
     let mut reader = pair
         .master
@@ -269,6 +289,9 @@ pub fn pty_kill(
     let mut map = state.map.lock().map_err(|_| "state lock 실패")?;
     if let Some(mut inst) = map.remove(&id) {
         let _ = inst.child.kill();
+        // 슬롯 job 핸들 닫아 자손 트리(node/dotnet)까지 즉시 reap — 슬롯 해제 시 고아 방지.
+        #[cfg(windows)]
+        jobkill::close(&id);
     }
     Ok(())
 }
@@ -331,5 +354,46 @@ mod tests {
 
         let captured = acc.lock().unwrap().clone();
         assert!(seen, "PTY echo 마커 미수신. 누적 출력:\n{}", captured);
+    }
+
+    /// 슬롯 job close() 가 할당된 프로세스 트리를 reap 하는지 검증 (슬롯 해제 시 고아 방지의 핵심).
+    /// cmd→ping 2단계 트리를 슬롯 job 에 묶고 close → KILL_ON_JOB_CLOSE 로 종료되는지 확인.
+    /// (자손 reap 은 job 멤버십 상속 + KILL_ON_JOB_CLOSE 의 OS 보장 — 앱 kill 라이브 테스트에서도 관측됨.)
+    #[cfg(windows)]
+    #[test]
+    fn jobkill_close_reaps_assigned_tree() {
+        use std::process::Command;
+        fn alive(pid: u32) -> bool {
+            let out = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid), "/NH", "/FO", "CSV"])
+                .output()
+                .expect("tasklist");
+            String::from_utf8_lossy(&out.stdout).contains(&format!("\"{}\"", pid))
+        }
+
+        // cmd 가 ping 자식을 낳는 2단계 트리. ping 30s 동안 생존(>NUL 로 출력 억제).
+        let mut child = Command::new("cmd")
+            .args(["/c", "ping -n 30 127.0.0.1 >NUL"])
+            .spawn()
+            .expect("spawn cmd");
+        let pid = child.id();
+        std::thread::sleep(Duration::from_millis(700)); // ping 자식 기동 대기
+
+        jobkill::assign("test-slot-A", pid);
+        assert!(alive(pid), "assign 직후 cmd({}) 가 이미 죽음 — 예상밖", pid);
+
+        jobkill::close("test-slot-A"); // 핸들 닫힘 → KILL_ON_JOB_CLOSE 발동
+
+        let start = Instant::now();
+        let mut dead = false;
+        while start.elapsed() < Duration::from_secs(5) {
+            if !alive(pid) {
+                dead = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+        let _ = child.kill(); // 안전망(이미 종료됐어야 함)
+        assert!(dead, "close() 후에도 cmd pid {} 생존 — 슬롯 job-close reap 미작동", pid);
     }
 }
