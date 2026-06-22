@@ -74,7 +74,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   ],
   slots: SLOT_IDS.map((id) => emptySlot(id)),
   queue: [],
-  injectDelayMs: 4000,
+  injectDelayMs: 8000,
   compactThresholdPct: 40,
   contextWindowTokens: 1_000_000,
 
@@ -87,7 +87,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const ids = Array.from({ length: n }, (_, i) => `slot-${i + 1}`);
     set({
       slots: ids.map((id) => emptySlot(id)),
-      injectDelayMs: cfg.inject_delay_ms || 4000,
+      injectDelayMs: cfg.inject_delay_ms || 8000,
       compactThresholdPct: Math.min(100, cfg.compact_threshold_pct ?? 40),
       contextWindowTokens: cfg.context_window_tokens || 1_000_000,
     });

@@ -17,7 +17,7 @@ import { useAppStore } from "@/store/useAppStore";
 //   pct < 임계 → 바로 다음 스텝 주입(불필요한 느린 압축 회피).
 //   측정 불가(transcript 없음/파싱 실패) → 보수적으로 압축.
 // 전제: target repo 훅 설치(hook_installer) → Stop·SessionStart 이벤트 발화.
-const INJECT_ENTER_DELAY = 800;
+const INJECT_ENTER_DELAY = 2000;
 // /compact 는 LLM 요약이라 오래 걸린다. 이 한도 내 SessionStart(압축 완료)가 없으면
 // 행(hang) 방지를 위해 압축 없이 다음 스텝을 주입하고 경고한다(자동 재시도 안 함).
 const COMPACT_WAIT_MS = 600_000; // 10분

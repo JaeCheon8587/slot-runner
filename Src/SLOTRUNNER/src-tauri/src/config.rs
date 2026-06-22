@@ -27,7 +27,7 @@ impl Default for AppConfig {
         Self {
             rest_port: 8765,
             slots: 2,
-            inject_delay_ms: 4000,
+            inject_delay_ms: 8000,
             compact_threshold_pct: 40,
             context_window_tokens: 1_000_000,
         }
@@ -88,7 +88,7 @@ mod tests {
         let c = AppConfig::default();
         assert_eq!(c.rest_port, 8765);
         assert_eq!(c.slots, 2);
-        assert_eq!(c.inject_delay_ms, 4000);
+        assert_eq!(c.inject_delay_ms, 8000);
         assert_eq!(c.compact_threshold_pct, 40);
         assert_eq!(c.context_window_tokens, 1_000_000);
     }

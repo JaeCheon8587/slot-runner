@@ -58,9 +58,9 @@ export function PtyTerminal({
         const delay = useAppStore.getState().injectDelayMs;
         setTimeout(() => {
           // 붙여넣기 후 충분히 정착시킨 뒤 Enter 제출. 동시 다중 세션 부하서 Enter 가
-          // 묻히지 않도록 800ms (단일 세션 400ms 에서 상향).
+          // 묻히지 않도록 2000ms.
           ptyPaste(id, inject)
-            .then(() => setTimeout(() => ptyEnter(id), 800))
+            .then(() => setTimeout(() => ptyEnter(id), 2000))
             .catch(() => {});
         }, delay);
       }
