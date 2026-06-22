@@ -45,9 +45,15 @@ export const MONDAY_STAGE = "monday-notify";
 // Monday 답글 제목 끝 시그니처(요구). 제목은 항상 이 문자열로 끝난다.
 export const MONDAY_SIGNATURE = "- Claude Code Agent with Codex Agent";
 // Monday 답글에 멘션할 대상(요구). mentionsList 로 전달해야 실제 알림이 간다(본문 '@이름'은 plain text).
-export const MONDAY_MENTION_ID = "105405262"; // Brenda (Integration Agent)
-export const MONDAY_MENTION_TYPE = "User"; // User | Team | Board | Project
-export const MONDAY_MENTION_NAME = "Brenda";
+// type: User | Team | Board | Project. 대상 추가 시 이 배열에 행 추가.
+export const MONDAY_MENTIONS: { id: string; type: string; name: string }[] = [
+  { id: "105405262", type: "User", name: "Brenda" }, // Brenda (Integration Agent)
+  { id: "940702", type: "Team", name: "ROS팀" },
+];
+const MONDAY_MENTIONS_JSON = JSON.stringify(
+  MONDAY_MENTIONS.map((m) => ({ id: m.id, type: m.type })),
+);
+const MONDAY_MENTION_NAMES = MONDAY_MENTIONS.map((m) => m.name).join(", ");
 
 /// 이 잡의 실효 routine. stages 지정 시 그대로(비면 기본 풀 routine) + Monday 종결 스텝 자동 추가.
 /// 설계·개발 어느 routine이든 마지막은 monday-notify(중복 방지, update_id 있을 때).
@@ -95,8 +101,8 @@ const STAGE_DIRECTIVES: Record<string, (job: Job) => string> = {
     `- 답글 대상 update_id: ${job.update_id} (parentId 로 지정해 reply 로 등록)\n` +
     `- 본문: 무엇을(엔드포인트/기능) 구현·검증했는지 + 빌드/테스트 결과를 간결히. 본문은 글자 그대로 등록.\n` +
     `- 본문 첫 줄(제목)은 반드시 시그니처 "${MONDAY_SIGNATURE}" 로 끝나게 하라(예: "[<TASK-ID>] <요약> ${MONDAY_SIGNATURE}").\n` +
-    `- create_update 호출 시 mentionsList 를 반드시 전달하라(이것이 ${MONDAY_MENTION_NAME} 에게 실제 멘션·알림을 발생시킨다): ` +
-    `mentionsList=[{"id":"${MONDAY_MENTION_ID}","type":"${MONDAY_MENTION_TYPE}"}].\n` +
+    `- create_update 호출 시 mentionsList 를 반드시 전달하라(이것이 ${MONDAY_MENTION_NAMES} 에게 실제 멘션·알림을 발생시킨다): ` +
+    `mentionsList=${MONDAY_MENTIONS_JSON}.\n` +
     `- 본문(body)에는 '@' 로 멘션을 적지 마라(plain text 로만 남음). 멘션은 오직 mentionsList 로 처리한다.`,
 };
 
