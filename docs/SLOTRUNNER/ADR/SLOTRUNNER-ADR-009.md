@@ -14,6 +14,7 @@
 | 버전 | 일자 | 변경 요약 | 작성자 |
 |---|---|---|---|
 | 0.1 | 2026-06-21 | 초안 — 프로젝트 레지스트리·책임 분리 결정 본문화 | jaecheon.jeong |
+| 0.2 | 2026-06-21 | 2계층(솔루션 cwd/sln + 호스트별 app/test_target) — doc/phase 호스트 최장일치 해석 | jaecheon.jeong |
 
 ---
 
@@ -26,8 +27,12 @@
   - 대상 repo 경로는 **SlotRunner 가 도는 호스트의 로컬 경로** — 그 PC에서만 의미 있다. `sln`·`test_target`·`app` 도 **프로젝트당 고정**(잡마다 안 바뀜).
   - 봇이 POST 에 풀 경로(cwd)를 박으면, 봇이 **남의 PC 파일시스템 레이아웃**을 알아야 하고 경로 변경 시 봇을 고쳐야 한다(결합).
 - **결정**:
-  - **레지스트리 소유 = SlotRunner 호스트**: `app_config_dir/projects.json` 에 `논리명 → { cwd, sln, app, test_target? }` 등록(호스트 로컬, 레포 미커밋).
-  - **봇은 논리명만**: POST 에 `project: "xlab"` + phase·prompt·stages·doc?·Monday ID. SlotRunner 가 레지스트리로 cwd/sln/app/test_target 을 **해석(resolve)** 후 슬롯 구동.
+  - **레지스트리 소유 = SlotRunner 호스트**: `app_config_dir/projects.json` (호스트 로컬, 레포 미커밋).
+  - **2계층 구조** — 한 솔루션 안의 여러 앱(호스트) 대응:
+    - **솔루션 공유**: `cwd`, `sln` (프로젝트당 1개).
+    - **호스트(앱)별**: `hosts` 맵 `{ <host>: { app, test_target? } }` — Loader/Master/ApiGateway/… 각각의 App 코드·test csproj. (`hosts` 없으면 top-level `app`/`test_target` 폴백 = 단일앱 프로젝트.)
+  - **호스트 해석**: SlotRunner 가 잡의 `doc` + `phase` 문자열에서 `hosts` 키 **최장일치**로 호스트를 골라 `app`·`test_target` 을 채운다(예: `Docs/LOADER/…` 또는 `loader-task-008` → `loader`). 미매칭 시 top-level 폴백.
+  - **봇은 논리명만**: POST 에 `project: "xlab"` + phase·prompt·stages·doc?·Monday ID. SlotRunner 가 cwd/sln(솔루션) + app/test_target(호스트 해석)을 **resolve** 후 슬롯 구동. 봇은 호스트를 몰라도 됨(doc 가 신호).
   - **직접 지정 폴백(A)**: `project` 없이 cwd/sln/app 을 직접 보내면 그대로 사용(임시·테스트). 직접값은 레지스트리보다 우선(override).
   - **알 수 없는 project → 거부**(`PROJECT_UNKNOWN`, 4xx).
   - 해석은 인테이크(REST) 단계에서 수행 — 프론트로는 **해석 완료된 Job** 이 전달(프론트 무변경).

@@ -135,6 +135,7 @@ mod tests {
                 sln: "X.sln".into(),
                 app: "MASTER".into(),
                 test_target: None,
+                hosts: std::collections::HashMap::new(),
             },
         );
         m

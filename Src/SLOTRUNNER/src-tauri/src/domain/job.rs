@@ -2,19 +2,56 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// 프로젝트 레지스트리 항목 — 호스트 로컬 경로·빌드 파라미터(프로젝트당 고정).
-/// SlotRunner 호스트가 소유(projects.json). 봇은 논리명(project)만 보낸다 — ADR-009.
+/// 호스트(앱)별 빌드 파라미터 — 한 솔루션 안의 여러 앱(Loader/Master/…) 각각.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ProjectEntry {
-    /// 대상 repo 절대경로 (슬롯 claude 세션의 cwd).
-    pub cwd: String,
-    /// 빌드 대상 솔루션 (forge contract-TDD).
-    pub sln: String,
-    /// 대상 App 코드 (docs-add-task 입력, 예: MASTER).
+pub struct HostEntry {
+    /// 대상 App 코드 (docs-add-task 입력, 예: LOADER·MASTER).
     pub app: String,
     /// 빌드 스코프 축소용 test csproj (선택).
     #[serde(default)]
     pub test_target: Option<String>,
+}
+
+/// 프로젝트 레지스트리 항목 — 호스트 로컬 경로·빌드 파라미터(프로젝트당 고정).
+/// SlotRunner 호스트가 소유(projects.json). 봇은 논리명(project)만 보낸다 — ADR-009.
+/// cwd·sln 은 솔루션 공유, app·test_target 은 호스트(앱)별 — `hosts` 맵으로 분기(ADR-009).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectEntry {
+    /// 대상 repo 절대경로 (슬롯 claude 세션의 cwd). 솔루션 공유.
+    pub cwd: String,
+    /// 빌드 대상 솔루션 (forge contract-TDD). 솔루션 공유.
+    pub sln: String,
+    /// 단일앱 프로젝트 폴백 App 코드 (hosts 없거나 미매칭 시).
+    #[serde(default)]
+    pub app: String,
+    /// 단일앱 프로젝트 폴백 test csproj.
+    #[serde(default)]
+    pub test_target: Option<String>,
+    /// 호스트(앱)별 app·test_target. doc/phase 경로의 호스트 키 최장일치로 선택.
+    #[serde(default)]
+    pub hosts: std::collections::HashMap<String, HostEntry>,
+}
+
+impl ProjectEntry {
+    /// doc/phase 문자열에서 호스트 키(최장일치)를 찾아 (app, test_target) 반환.
+    /// 매칭 없으면 단일앱 폴백(top-level app/test_target).
+    fn resolve_host(&self, signal: &str) -> (String, Option<String>) {
+        if !self.hosts.is_empty() {
+            let s = signal.to_lowercase();
+            let mut best: Option<(&String, &HostEntry)> = None;
+            for (k, v) in &self.hosts {
+                if s.contains(&k.to_lowercase())
+                    && best.map_or(true, |(bk, _)| k.len() > bk.len())
+                {
+                    best = Some((k, v));
+                }
+            }
+            if let Some((_, h)) = best {
+                return (h.app.clone(), h.test_target.clone());
+            }
+        }
+        (self.app.clone(), self.test_target.clone())
+    }
 }
 
 /// 프로젝트 논리명 → 항목. projects.json 의 역직렬화 대상.
@@ -73,11 +110,14 @@ impl JobSpec {
         if self.sln.trim().is_empty() {
             self.sln = e.sln.clone();
         }
+        // app·test_target 은 호스트(앱)별 — doc + phase 로 호스트 해석(최장일치, 미매칭 시 폴백).
+        let signal = format!("{} {}", self.doc, self.phase);
+        let (host_app, host_tt) = e.resolve_host(&signal);
         if self.app.trim().is_empty() {
-            self.app = e.app.clone();
+            self.app = host_app;
         }
         if self.test_target.is_none() {
-            self.test_target = e.test_target.clone();
+            self.test_target = host_tt;
         }
         Ok(())
     }
@@ -152,9 +192,60 @@ mod tests {
                 sln: "X.sln".into(),
                 app: "MASTER".into(),
                 test_target: Some("X.Test.csproj".into()),
+                hosts: std::collections::HashMap::new(),
             },
         );
         m
+    }
+
+    fn registry_hosts() -> Projects {
+        let mut hosts = std::collections::HashMap::new();
+        hosts.insert(
+            "loader".into(),
+            HostEntry { app: "LOADER".into(), test_target: Some("Loader.Test.csproj".into()) },
+        );
+        hosts.insert(
+            "master".into(),
+            HostEntry { app: "MASTER".into(), test_target: Some("Master.Test.csproj".into()) },
+        );
+        let mut m = Projects::new();
+        m.insert(
+            "xlab".into(),
+            ProjectEntry {
+                cwd: "C:/XLab".into(),
+                sln: "X.sln".into(),
+                app: String::new(),
+                test_target: None,
+                hosts,
+            },
+        );
+        m
+    }
+
+    #[test]
+    fn resolve_host_by_doc_path() {
+        // doc 가 Loader → loader 호스트 app/test_target.
+        let mut s: JobSpec = serde_json::from_str(
+            r#"{"project":"xlab","phase":"loader-task-008","doc":"Docs/LOADER/TASK/LOADER-TASK-008.md","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#,
+        )
+        .unwrap();
+        s.resolve(&registry_hosts()).unwrap();
+        assert_eq!(s.cwd, "C:/XLab");
+        assert_eq!(s.app, "LOADER");
+        assert_eq!(s.test_target.as_deref(), Some("Loader.Test.csproj"));
+        assert!(s.validate().is_ok());
+    }
+
+    #[test]
+    fn resolve_host_master_from_phase_when_doc_empty() {
+        // doc 비어도 phase(master-...)로 호스트 해석.
+        let mut s: JobSpec = serde_json::from_str(
+            r#"{"project":"xlab","phase":"master-task-019","prompt":"x","board_id":"1","item_id":"2","update_id":"3"}"#,
+        )
+        .unwrap();
+        s.resolve(&registry_hosts()).unwrap();
+        assert_eq!(s.app, "MASTER");
+        assert_eq!(s.test_target.as_deref(), Some("Master.Test.csproj"));
     }
 
     #[test]
