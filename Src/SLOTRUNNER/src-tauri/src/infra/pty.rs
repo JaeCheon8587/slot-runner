@@ -70,14 +70,35 @@ fn resolve_command(program: &str, args: Vec<String>) -> (String, Vec<String>) {
 #[cfg(windows)]
 fn which_windows(name: &str) -> Option<String> {
     let path = std::env::var("PATH").ok()?;
-    let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
-    let exts: Vec<&str> = pathext.split(';').filter(|s| !s.is_empty()).collect();
-    for dir in std::env::split_paths(&path) {
-        let direct = dir.join(name);
-        if direct.is_file() {
-            return Some(direct.to_string_lossy().into_owned());
+    // .PS1 보강(npm claude.ps1 등). 기본값은 Windows 표준 + .PS1.
+    let pathext =
+        std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD;.PS1".to_string());
+    let exts: Vec<String> = pathext
+        .split(';')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+    let dirs: Vec<std::path::PathBuf> = std::env::split_paths(&path).collect();
+    resolve_in_dirs(name, &dirs, &exts)
+}
+
+/// PATH 디렉토리들에서 실행 파일을 해석한다(순수 — env 비의존, 테스트 가능).
+/// 확장자 없는 이름은 **PATHEXT 변형만** 매칭한다 — 확장자 없는 bare 파일
+/// (npm Unix shim `claude` = 셸 스크립트)은 CreateProcessW 가 실행 못 해
+/// os error 193(BAD_EXE_FORMAT) 이 나므로 절대 반환하지 않는다.
+/// 이름에 이미 확장자가 있으면(예: `claude.cmd`) 그 파일만 찾는다.
+#[cfg(windows)]
+fn resolve_in_dirs(name: &str, dirs: &[std::path::PathBuf], exts: &[String]) -> Option<String> {
+    let has_ext = std::path::Path::new(name).extension().is_some();
+    for dir in dirs {
+        if has_ext {
+            let direct = dir.join(name);
+            if direct.is_file() {
+                return Some(direct.to_string_lossy().into_owned());
+            }
+            continue;
         }
-        for ext in &exts {
+        for ext in exts {
             let cand = dir.join(format!("{}{}", name, ext));
             if cand.is_file() {
                 return Some(cand.to_string_lossy().into_owned());
@@ -354,6 +375,34 @@ mod tests {
 
         let captured = acc.lock().unwrap().clone();
         assert!(seen, "PTY echo 마커 미수신. 누적 출력:\n{}", captured);
+    }
+
+    /// 확장자 없는 `claude`(npm Unix shim, 셸 스크립트)가 아니라 `claude.cmd`(PATHEXT)를
+    /// 골라야 한다 — bare 매칭은 CreateProcessW os error 193(회사 환경 버그)을 낸다.
+    #[cfg(windows)]
+    #[test]
+    fn which_prefers_pathext_over_extensionless_shim() {
+        use std::fs;
+        let base = std::env::temp_dir().join(format!("slotrunner_which_{}", std::process::id()));
+        let _ = fs::create_dir_all(&base);
+        // npm 처럼 확장자 없는 shim + .cmd 둘 다 존재시킨다.
+        fs::write(base.join("claude"), b"#!/bin/sh\necho shim").unwrap();
+        fs::write(base.join("claude.cmd"), b"@echo off\r\n").unwrap();
+        let exts: Vec<String> = vec![".EXE".to_string(), ".CMD".to_string()];
+
+        // 확장자 없는 이름 → bare shim 무시, claude.cmd 선택.
+        let got = resolve_in_dirs("claude", std::slice::from_ref(&base), &exts).expect("resolve");
+        assert!(
+            got.to_lowercase().ends_with("claude.cmd"),
+            "확장자 없는 shim 을 잘못 매칭: {}",
+            got
+        );
+        // 명시 확장자 → 그 파일.
+        let got2 =
+            resolve_in_dirs("claude.cmd", std::slice::from_ref(&base), &exts).expect("resolve2");
+        assert!(got2.to_lowercase().ends_with("claude.cmd"));
+
+        let _ = fs::remove_dir_all(&base);
     }
 
     /// 슬롯 job close() 가 할당된 프로세스 트리를 reap 하는지 검증 (슬롯 해제 시 고아 방지의 핵심).
